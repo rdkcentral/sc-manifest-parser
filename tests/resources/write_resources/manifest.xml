@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='ASCII'?>
+<manifest>
+  <remote fetch="ssh://git@skyswteam.com" name="sky_external"/>
+  <default remote="sky_external"/>
+  <include name="include_manifest.xml"/>
+
+  <project groups="Group1" name="test_repo/repo_flow_test_projecta.git" path="dira" revision="28b81e53d8c45a5be84f1656bd6aa3b635f07957">
+    <annotation name="STM_GIT_BRANCH" value="develop"/>
+  </project>
+  <project groups="Group2" name="test_repo/repo_flow_test_projectb.git" path="dirb" revision="1b7d926afe1c5da59b1a6be7eb8d5458b446a3ec">
+    <annotation name="GIT_FLOW_BRANCH_DEVELOP" value="test-develop"/>
+    <annotation name="GIT_FLOW_BRANCH_MASTER" value="test_master"/>
+  </project>
+  <branch name="test_branch"/>
+  <post-sync path="post-sync.sh"/>
+  <other_element text="test"/>
+  <release version="0.0.0"/>
+</manifest>

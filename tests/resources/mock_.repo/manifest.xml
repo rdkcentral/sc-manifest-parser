@@ -1,0 +1,3 @@
+<manifest>
+    <include name="test_manifest.xml"/>
+</manifest>

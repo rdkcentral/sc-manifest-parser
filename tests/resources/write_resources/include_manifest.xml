@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='ASCII'?>
+<manifest>
+  <project groups="Group3" name="test_repo/repo_flow_test_projectc.git" path="dirc" revision="7b4a84290431aa334abb275c432b41c2a72d63f6">
+    <annotation name="STM_GIT_BRANCH" value="develop"/>
+    <annotation name="GIT_LOCK_STATUS" value="TAG_ONLY"/>
+  </project>
+  <project groups="Group4" name="test_repo/repo_flow_test_projectd.git" path="dird" revision="d82d29be14fce3ad91cddea1a559d4ac996bb64b">
+    <linkfile dest="links" src="**"/>
+    <annotation name="STM_GIT_BRANCH" value="develop"/>
+    <annotation name="GIT_LOCK_STATUS" value="READ_ONLY"/>
+  </project>
+  <post-sync path="post-sync.sh"/>
+</manifest>

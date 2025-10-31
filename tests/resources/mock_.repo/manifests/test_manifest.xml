@@ -1,0 +1,19 @@
+<manifest>
+  <default remote="external"/>
+  <remote fetch="ssh://git@team.com" name="external" />
+  <git_flow suffix="v2"/>
+  <project groups="Group1" name="test_repo/repo_flow_test_projecta.git" path="dira" revision="823a24794c1d980aaaa08fbd0a8dd95d1a1a8c39">
+    <annotation name="GIT_FLOW_SUFFIX" value="v2" />
+  </project>
+  <project groups="Group2" name="test_repo/repo_flow_test_projectb.git" path="dirb" revision="d017db0c2d8886a2f6512de5b8a5eac9ebc735d4">
+    <annotation name="GIT_FLOW_BRANCH_DEVELOP" value="develop_2" />
+  </project>
+  <project groups="Group3" name="test_repo/repo_flow_test_projectc.git" path="dirc" revision="7b4a84290431aa334abb275c432b41c2a72d63f6">
+    <annotation name="GIT_FLOW_BRANCH_MASTER" value="master_2" />
+  </project>
+  <project groups="Group4" name="test_repo/repo_flow_test_projectd.git" path="dird" revision="d82d29be14fce3ad91cddea1a559d4ac996bb64b">
+    <annotation name="GIT_LOCK_STATUS" value="READ_ONLY" />
+    <linkfile dest="links" src="**" />
+  </project>
+  <post-sync path="post-sync.sh"/>
+</manifest>
