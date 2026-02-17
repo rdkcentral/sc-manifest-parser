@@ -129,7 +129,7 @@ class ManifestParserTester(unittest.TestCase):
             expected_linkfiles = expected_projects[index].get('linkfiles')
             self._test_project_linkfiles(project,expected_linkfiles)
 
-            
+
 
     def _test_project_groups(self,project,expected_groups=None):
         if expected_groups:
@@ -187,7 +187,7 @@ class ManifestParserTester(unittest.TestCase):
             link_file_amt = None
         if expected_linkfiles:
             error_string = 'Project had [{len_linkfiles}], expected only {expected_linkfiles}'.format(len_linkfiles=link_file_amt, expected_linkfiles=expected_linkfiles)
-            self.assertEqual(link_file_amt, expected_linkfiles, error_string), 
+            self.assertEqual(link_file_amt, expected_linkfiles, error_string),
         else:
             self.assertIsNone(link_file_amt,'Project had {len_linkfiles}, expected None'.format(len_linkfiles=link_file_amt))
 
