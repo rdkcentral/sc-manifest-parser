@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+import copy
 import logging
-from lxml import etree
 from pathlib import Path
 
+from lxml import etree
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,11 @@ class ManifestElementInterface:
         if value is None:
             return self._manifest.get_default_value(name)
         return value
-    
+
     def __setattr__(self, name: str, value: str):
         """Setting attr on the interface sets the attribute on the element."""
         self._element.attrib[name] = value
-    
+
     def __delattr__(self, name: str):
         """Deleting attr on the interface deletes the attribute on the element."""
         try:
@@ -53,19 +54,19 @@ class ManifestElementInterface:
     @property
     def children(self) -> list["ManifestElementInterface"]:
         return [ManifestElementInterface(child, self._manifest) for child in self._element]
-    
+
     def add_child(self, name: str, attributes: dict[str, str]) -> "ManifestElementInterface":
         child = etree.SubElement(self._element, name, attrib=attributes)
         return ManifestElementInterface(child, self._manifest)
-    
-    def search_children(self, name: str) -> list["ManifestElementInterface"] | None:
+
+    def search_children(self, name: str) -> list["ManifestElementInterface"]:
         """Search the children of the current node for a child with the given name
 
         Args:
             name (str): The name of the element tag you're looking for.
 
         Returns:
-            list[ManifestElementInterface] | None: A list of all the children that match
+            list[ManifestElementInterface]: A list of all the children that match
                 the name. None if no children with the given name are found.
         """
         return [child for child in self.children if child._element.tag == name]
@@ -77,23 +78,23 @@ class ProjectElementInterface(ManifestElementInterface):
     @property
     def path(self) -> str:
         return self._element.attrib.get('path') or self._element.attrib.get('name')
-    
+
     @property
     def lock_status(self) -> str | None:
         """Get the value of the annotation element with name set to GIT_LOCK_STATUS.
-        
+
         Returns:
             str: The value of the annotation element with name set to GIT_LOCK_STATUS.
         """
         annotations = self.search_children('annotation')
-        
+
         if annotations:
             matched_annotations = [a for a in annotations if a.name == 'GIT_LOCK_STATUS']
             if matched_annotations:
                 return matched_annotations[0].value
-        
+
         return None
-    
+
     @property
     def alternative_master(self) -> str | None:
         return self._get_alternative_branch('master')
@@ -101,22 +102,22 @@ class ProjectElementInterface(ManifestElementInterface):
     @property
     def alternative_develop(self) -> str | None:
         return self._get_alternative_branch('develop')
-    
+
     def _get_alternative_branch(self, branch: str) -> str | None:
         """Get the value of the first annotation element with
         name set to GIT_FLOW_BRANCH_<argument branch> or GIT_FLOW_SUFFIX
-        
+
         Args:
           branch (str): The branch we are looking for an alternative for.
-        
+
         Returns:
-            str: The value of the annotation element with name set to 
+            str: The value of the annotation element with name set to
                 GIT_FLOW_BRANCH_<argument branch> or GIT_FLOW_SUFFIX.
         """
         annotations = self.search_children('annotation')
         if not annotations:
             return None
-        
+
         branch_annotation = f"GIT_FLOW_BRANCH_{branch.upper()}"
         suffix_annotation = "GIT_FLOW_SUFFIX"
 
@@ -125,34 +126,29 @@ class ProjectElementInterface(ManifestElementInterface):
                 return annotation.value
             if annotation.name == suffix_annotation:
                 return f"{branch}-{annotation.value}"
-        
+
         return None
 
 class ScManifest:
     """Represents an sc manifest."""
     def __init__(self, manifest_path: str | Path):
         self.manifests: dict[Path, etree._ElementTree] = {}
-        self.manifest_path = Path(manifest_path)
-        if not self.manifest_path.exists():
+        self._manifest_dir = Path(manifest_path).parent
+        manifest_path = Path(manifest_path)
+        if not manifest_path.exists():
             raise FileNotFoundError(
                 'Cannot find manifest path supplied: {manifest_path}'.format(
-                    manifest_path=self.manifest_path))
+                    manifest_path=manifest_path))
 
-        self.xml_parser = etree.XMLParser(remove_blank_text=True)
-        tree = etree.parse(self.manifest_path, self.xml_parser)
-        self.manifests[self.manifest_path] = tree
+        xml_parser = etree.XMLParser(remove_blank_text=True)
+        tree = etree.parse(manifest_path, xml_parser)
+        self.manifests[manifest_path.relative_to(self._manifest_dir)] = tree
 
         root = tree.getroot()
         for inc in root.findall('include'):
-            self._parse_include(inc.get('name'), self.manifest_path.parent)
+            self._parse_include(inc.get('name'), self._manifest_dir, xml_parser)
 
-        defaults = self._find_all('default') 
-        if len(defaults) > 1:
-            raise ValueError("More than one <default> element.")
-        elif len(defaults) == 1:
-            self._default = defaults[0]
-        else:
-            self._default = None
+        self._default = self._get_default()
 
     @classmethod
     def from_repo_root(cls, repo_root: Path | str) -> "ScManifest":
@@ -167,7 +163,7 @@ class ScManifest:
 
         Returns:
             ScManifest: The manifest supplying the repo project.
-        """    
+        """
         manifest_xml = Path(repo_root) / 'manifest.xml'
         if manifest_xml.is_symlink():
             return cls(repo_root / manifest_xml.readlink())
@@ -177,7 +173,7 @@ class ScManifest:
             if len(included) != 1:
                 raise ValueError(
                     "Incorrect number of included manifests in " + str(manifest_xml) +
-                    "! Should be one but is " + len(included)
+                    f"! Should be one but is {len(included)}"
                 )
             return cls(manifest_xml.parent / 'manifests' / included[0].attrib['name'])
 
@@ -188,17 +184,17 @@ class ScManifest:
     @property
     def projects(self) -> list[ProjectElementInterface]:
         """Get all project attributes, removing any specified by remove-project attributes
-        """        
-        projects = [ProjectElementInterface(proj, self) for 
+        """
+        projects = [ProjectElementInterface(proj, self) for
                     proj in self._find_all('project')]
-        
+
         projects = self._apply_remove_project_attributes(projects)
-        
+
         return projects
-    
+
     @property
     def remove_projects(self) -> list[ManifestElementInterface]:
-        return [ManifestElementInterface(proj, self) for 
+        return [ManifestElementInterface(proj, self) for
                 proj in self._find_all('remove-project')]
 
     @property
@@ -213,18 +209,18 @@ class ScManifest:
     def git_flow(self) -> ManifestElementInterface | None:
         git_flow = self._find_all('git_flow')
         return ManifestElementInterface(git_flow[0], self) if len(git_flow) != 0 else None
-    
+
     @property
     def submanifests(self) -> list["ScManifest"]:
         subman_elems = self._find_all('submanifest')
-        return [ScManifest(self.manifest_path / sub.get('path')) for sub in subman_elems]
-    
+        return [ScManifest(self._manifest_dir / sub.get('path')) for sub in subman_elems]
+
     def get_default_value(self, name: str) -> str | None:
         return self._default.get(name) if self._default is not None else None
 
     def get_project_by_name(self, project_name: str) -> ProjectElementInterface:
         """Get a ProjectElementInterface object for the project with the given name.
-        
+
         Args:
             project_name (str): The name of the project you want to get.
 
@@ -232,7 +228,7 @@ class ScManifest:
             AttributeError: When no project with the given name can be found.
 
         Returns:
-            ProjectElementInterface: ProjectElementInterface object with name 
+            ProjectElementInterface: ProjectElementInterface object with name
                 attribute matching project_name.
         """
         for project in self.projects:
@@ -242,7 +238,7 @@ class ScManifest:
 
     def get_project_by_path(self, project_path: str | Path) -> ProjectElementInterface:
         """Get a ProjectElementInterface object for the project with the given path.
-        
+
         Args:
             project_path (str | Path): The path to the project you want to get.
 
@@ -250,7 +246,7 @@ class ScManifest:
             AttributeError: When no project with the given path can be found.
 
         Returns:
-            ProjectElementInterface: ProjectElementInterface object with path 
+            ProjectElementInterface: ProjectElementInterface object with path
                 attribute matching project_path.
         """
         for project in self.projects:
@@ -260,7 +256,7 @@ class ScManifest:
 
     def get_remote_by_name(self, remote_name: str) -> ManifestElementInterface:
         """Get a `ManifestElementInterface` object for the remote with the given name.
-        
+
         Args:
             remote_name (str): The name of the remote to get.
 
@@ -275,11 +271,50 @@ class ScManifest:
             if remote.name == remote_name:
                 return remote
         raise AttributeError ('No project found with name: {}'.format(remote_name))
-    
+
     def write(self):
         for source_file, tree in self.manifests.items():
-            with open(source_file, 'wb') as file:
+            with open(self._manifest_dir / source_file, 'wb') as file:
                 tree.write(file, pretty_print=True, xml_declaration=True)
+
+    def equals(self, other: "ScManifest", *, ignore_attrs: set[str] | None = None) -> bool:
+        """Equals another ScManifest, ignoring attributes.
+
+        Args:
+            other (ScManifest): ScManifest to compare against.
+            ignore_attrs (set[str] | None, optional): Attributes
+                to ignore. Defaults to None.
+
+        Returns:
+            bool: True if equal ignoring those attributes. False if not.
+        """
+        if not isinstance(other, ScManifest):
+            return False
+
+        return self.normalized(ignore_attrs=ignore_attrs) == \
+               other.normalized(ignore_attrs=ignore_attrs)
+
+    def normalized(self, *, ignore_attrs: set[str] | None = None) -> dict[Path, bytes]:
+        """Return a canonicalized representation of included manifests.
+
+        Args:
+            ignore_attrs (set[str] | None): Attribute to ignore on all
+                elements. Defaults to None.
+
+        Returns:
+            dict[Path, bytes]: Manifest paths relative to top manifest folder
+                mapped to canonicalized XML bytes.
+        """
+        ignore_attrs = ignore_attrs or set()
+
+        def normalize(tree: etree._ElementTree) -> bytes:
+            clone = copy.deepcopy(tree)
+            for elem in clone.getroot().iter():
+                for attr in ignore_attrs:
+                    elem.attrib.pop(attr, None)
+            return etree.tostring(clone, method="c14n")
+
+        return {key: normalize(tree) for key, tree in self.manifests.items()}
 
     def _find_all(self, element_name: str) -> list[etree._Element]:
         """Find all top level elements by name in all included manifests."""
@@ -288,11 +323,11 @@ class ScManifest:
             elements = tree.getroot().findall(element_name)
             results.extend(elements)
         return results
-                
-    def _parse_include(self, path: Path | str, include_root: Path | str):
+
+    def _parse_include(self, path: str, include_root: Path, xml_parser: etree.XMLParser):
         full_path = Path(include_root) / path
-        include_manifest: etree._ElementTree = etree.parse(str(full_path), self.xml_parser)
-        self.manifests[full_path] = include_manifest
+        include_manifest: etree._ElementTree = etree.parse(str(full_path), xml_parser)
+        self.manifests[full_path.relative_to(self._manifest_dir)] = include_manifest
 
         for subelement in include_manifest.getroot():
             if subelement.tag == "include":
@@ -300,7 +335,7 @@ class ScManifest:
                     raise ValueError(
                         f"Include element in manifest {full_path} missing name!")
 
-                self._parse_include(subelement.get('name'), full_path.parent)
+                self._parse_include(subelement.get('name'), full_path.parent, xml_parser)
 
     def _apply_remove_project_attributes(
             self, projects: list[ProjectElementInterface]) -> list[ProjectElementInterface]:
@@ -320,5 +355,22 @@ class ScManifest:
                 elif rm.name == None and rm.path == project.path:
                     projects.remove(project)
                     break
-                
+
         return projects
+
+    def _get_default(self) -> etree._Element | None:
+        """Sets the default element.
+
+        Raises:
+            ValueError: If more than one default element found.
+
+        Returns:
+            etree._Element | None: The default if found or None if not.
+        """
+        defaults = self._find_all('default')
+        if len(defaults) > 1:
+            raise ValueError("More than one <default> element.")
+        elif len(defaults) == 1:
+            return defaults[0]
+        else:
+            return None
