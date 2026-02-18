@@ -66,7 +66,7 @@ class ManifestElementInterface:
             name (str): The name of the element tag you're looking for.
 
         Returns:
-            list[ManifestElementInterface] | None: A list of all the children that match
+            list[ManifestElementInterface]: A list of all the children that match
                 the name. None if no children with the given name are found.
         """
         return [child for child in self.children if child._element.tag == name]
@@ -277,33 +277,29 @@ class ScManifest:
             with open(self._manifest_dir / source_file, 'wb') as file:
                 tree.write(file, pretty_print=True, xml_declaration=True)
 
-    def equals_ignoring_revisions(
-            self,
-            target: "ScManifest"
-        ) -> bool:
-        """Are these manifests equal ignoring changes in revisions?
+    def normalized(self, *, ignore_attrs: set[str] | None = None) -> dict[Path, bytes]:
+        """Return a canonicalized representation of included manifests.
+
+        Can be used to compare two ScManifests for equality.
 
         Args:
-            target (ScManifest): The manifest to compare against.
+            ignore_attrs (set[str] | None): Attribute to ignore on all
+                elements. Defaults to None.
 
         Returns:
-            bool: True if equal ignoring revisions, False if not.
+            dict[Path, bytes]: Manifest paths relative to top manifest folder
+                mapped to canonicalized XML bytes.
         """
-        def rev_removed(tree: etree._ElementTree) -> bytes:
+        ignore_attrs = ignore_attrs or set()
+
+        def normalize(tree: etree._ElementTree) -> bytes:
             clone = copy.deepcopy(tree)
-            for proj in clone.getroot().findall(".//project"):
-                proj.attrib.pop("revision", None)
-            # c14n used for comparison
+            for elem in clone.getroot().iter():
+                for attr in ignore_attrs:
+                    elem.attrib.pop(attr, None)
             return etree.tostring(clone, method="c14n")
 
-        if sorted(list(self.manifests.keys())) != sorted(list(target.manifests.keys())):
-            return False
-
-        for key in self.manifests:
-            if rev_removed(self.manifests[key]) != rev_removed(target.manifests[key]):
-                return False
-
-        return True
+        return {key: normalize(tree) for key, tree in self.manifests.items()}
 
     def _find_all(self, element_name: str) -> list[etree._Element]:
         """Find all top level elements by name in all included manifests."""
