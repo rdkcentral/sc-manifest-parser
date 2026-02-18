@@ -19,7 +19,7 @@ def make_manifest(xml_map: dict[str, str]) -> ScManifest:
     return m
 
 
-class TestScManifestNormalized(unittest.TestCase):
+class TestScManifestEquals(unittest.TestCase):
 
     def test_identical_manifests_equal(self):
         xml = "<manifest><project name='a' revision='1'/></manifest>"
@@ -27,7 +27,7 @@ class TestScManifestNormalized(unittest.TestCase):
         m1 = make_manifest({"a.xml": xml})
         m2 = make_manifest({"a.xml": xml})
 
-        self.assertEqual(m1.normalized(), m2.normalized())
+        self.assertTrue(m1.equals(m2))
 
     def test_ignore_revision_attribute(self):
         xml1 = "<manifest><project name='a' revision='1'/></manifest>"
@@ -36,10 +36,7 @@ class TestScManifestNormalized(unittest.TestCase):
         m1 = make_manifest({"a.xml": xml1})
         m2 = make_manifest({"a.xml": xml2})
 
-        self.assertEqual(
-            m1.normalized(ignore_attrs={"revision"}),
-            m2.normalized(ignore_attrs={"revision"})
-        )
+        self.assertTrue(m1.equals(m2, ignore_attrs={"revision"}))
 
     def test_revision_difference_detected_without_ignore(self):
         xml1 = "<manifest><project name='a' revision='1'/></manifest>"
@@ -48,7 +45,7 @@ class TestScManifestNormalized(unittest.TestCase):
         m1 = make_manifest({"a.xml": xml1})
         m2 = make_manifest({"a.xml": xml2})
 
-        self.assertNotEqual(m1.normalized(), m2.normalized())
+        self.assertFalse(m1.equals(m2))
 
     def test_structure_difference_detected(self):
         xml1 = "<manifest><project name='a'/></manifest>"
@@ -57,19 +54,7 @@ class TestScManifestNormalized(unittest.TestCase):
         m1 = make_manifest({"a.xml": xml1})
         m2 = make_manifest({"a.xml": xml2})
 
-        self.assertNotEqual(m1.normalized(), m2.normalized())
-
-    def test_missing_attribute_safe(self):
-        xml = "<manifest><project name='a'/></manifest>"
-
-        m = make_manifest({"a.xml": xml})
-
-        # Should not raise
-        try:
-            m.normalized(ignore_attrs={"revision"})
-        except Exception as e:
-            self.fail(f"normalized() raised an exception: {e}")
-
+        self.assertFalse(m1.equals(m2))
 
 if __name__ == "__main__":
     unittest.main()

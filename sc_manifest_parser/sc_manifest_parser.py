@@ -277,10 +277,25 @@ class ScManifest:
             with open(self._manifest_dir / source_file, 'wb') as file:
                 tree.write(file, pretty_print=True, xml_declaration=True)
 
+    def equals(self, other: "ScManifest", *, ignore_attrs: set[str] | None = None) -> bool:
+        """Equals another ScManifest, ignoring attributes.
+
+        Args:
+            other (ScManifest): ScManifest to compare against.
+            ignore_attrs (set[str] | None, optional): Attributes
+                to ignore. Defaults to None.
+
+        Returns:
+            bool: True if equal ignoring those attributes. False if not.
+        """
+        if not isinstance(other, ScManifest):
+            return False
+
+        return self.normalized(ignore_attrs=ignore_attrs) == \
+               other.normalized(ignore_attrs=ignore_attrs)
+
     def normalized(self, *, ignore_attrs: set[str] | None = None) -> dict[Path, bytes]:
         """Return a canonicalized representation of included manifests.
-
-        Can be used to compare two ScManifests for equality.
 
         Args:
             ignore_attrs (set[str] | None): Attribute to ignore on all
